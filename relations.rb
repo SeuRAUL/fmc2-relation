@@ -1,14 +1,13 @@
 require './Relation.rb'
 
 # takes a set of integers and
-# returns a relation of division. 
+# returns a Relation of division. 
 def dividesRelation(set)
   rDiv = Relation.new(set, "division")
   for i in set
     for j in set
       if i%j==0
         rDiv.relateElements(j, i)
-        # puts "[#{j}, #{i}]"
       end
     end
   end
@@ -26,16 +25,16 @@ def dualRelation(relation)
     end
   end
   dualRel
-  # p dualRel
 end
 dualRel = dualRelation( rDiv )
 p dualRel
 
-# def IsReflexive(relation)
-#   is_reflexive = true
-#   u; # index into Dom(R)
-#   for u in DomainRelation(R) do
-#     is_reflexive := is_reflexive and member([u,u], R);
-#   od;
-#   RETURN(is_reflexive);
-# end
+# checks if each element is related to himself
+def isReflexive(relation)
+  relation.r.each do |k, v|
+    false unless v.include? k
+  end
+  true
+end
+p isReflexive(rDiv)
+
