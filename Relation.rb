@@ -30,4 +30,13 @@ class Relation
     end
     true
   end
+  
+  def isAntiSymmetric?
+    self.r.each do |k, v|
+      v.each do |vv|
+        false unless self.r.has_key?(vv) and self.r[vv].include? k and vv == k
+      end
+    end
+    true
+  end
 end

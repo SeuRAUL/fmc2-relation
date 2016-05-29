@@ -32,4 +32,4 @@ p dualRel
 # checks if each element is related to himself
 p "Reflexive? #{rDiv.isReflexive?}"
 p "Symmetric? #{rDiv.isSymmetric?}"
-
+p "AntiSymmetric? #{rDiv.isAntiSymmetric?}"
