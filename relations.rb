@@ -30,11 +30,5 @@ dualRel = dualRelation( rDiv )
 p dualRel
 
 # checks if each element is related to himself
-def isReflexive(relation)
-  relation.r.each do |k, v|
-    false unless v.include? k
-  end
-  true
-end
-p isReflexive(rDiv)
+p rDiv.isReflexive?
 

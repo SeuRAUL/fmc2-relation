@@ -11,4 +11,12 @@ class Relation
     @r[e1] = [] unless @r.has_key?(e1)
     @r[e1] << e2
   end
+  
+  # checks if each element is related to himself
+  def isReflexive?
+    self.r.each do |k, v|
+      false unless v.include? k
+    end
+    true
+  end
 end
