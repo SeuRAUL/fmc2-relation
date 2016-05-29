@@ -30,5 +30,6 @@ dualRel = dualRelation( rDiv )
 p dualRel
 
 # checks if each element is related to himself
-p rDiv.isReflexive?
+p "Reflexive? #{rDiv.isReflexive?}"
+p "Symmetric? #{rDiv.isSymmetric?}"
 

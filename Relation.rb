@@ -12,10 +12,21 @@ class Relation
     @r[e1] << e2
   end
   
+  ## Properties
+  
   # checks if each element is related to himself
   def isReflexive?
     self.r.each do |k, v|
       false unless v.include? k
+    end
+    true
+  end
+  
+  def isSymmetric?
+    self.r.each do |k, v|
+      v.each do |vv|
+        false unless self.r.has_key?(vv) and self.r[vv].include? k
+      end
     end
     true
   end
