@@ -7,8 +7,9 @@ class Relation
   
   attr_reader :r, :set, :definition
   
-  def pairElements(e1, e2)
-    @r[e1] = e2
+  def relateElements(e1, e2)
+    @r[e1] = [] unless @r.has_key?(e1)
+    @r[e1] << e2
   end
 end
 
@@ -18,36 +19,40 @@ end
 
 # takes a set of integers and
 # returns a relation of division. 
-def DividesRelation(set)
-  relations = Array.new
+def dividesRelation(set)
+  rDiv = Relation.new(set, "division")
   for i in set
     for j in set
       if i%j==0
-        relations << [j, i]
+        rDiv.relateElements(j, i)
         # puts "[#{j}, #{i}]"
       end
     end
   end
-  relations
+  rDiv
 end
-DividesRelation( [1, 2, 3, 4] )
+rDiv = dividesRelation( [1, 2, 3, 4] )
+p rDiv
 
 # create the dual of the relation
 def dualRelation(relation)
-  dualRel = Array.new
-  relation.each do |r|
-    dualRel << [r[1], r[0]]
+  dualRel = Relation.new(relation.set, "dual-"+relation.definition)
+  relation.r.each do |k, v|
+    v.each do |val|
+      dualRel.relateElements(val, k)
+    end
   end
   dualRel
   # p dualRel
 end
-dualRelation( DividesRelation( [1, 2, 3, 4] ) )
+dualRel = dualRelation( rDiv )
+p dualRel
 
-def IsReflexive(relation)
-  is_reflexive = true
-  u; # index into Dom(R)
-  for u in DomainRelation(R) do
-    is_reflexive := is_reflexive and member([u,u], R);
-  od;
-  RETURN(is_reflexive);
-end
+# def IsReflexive(relation)
+#   is_reflexive = true
+#   u; # index into Dom(R)
+#   for u in DomainRelation(R) do
+#     is_reflexive := is_reflexive and member([u,u], R);
+#   od;
+#   RETURN(is_reflexive);
+# end
