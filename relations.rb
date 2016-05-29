@@ -33,3 +33,10 @@ p dualRel
 p "Reflexive? #{rDiv.isReflexive?}"
 p "Symmetric? #{rDiv.isSymmetric?}"
 p "AntiSymmetric? #{rDiv.isAntiSymmetric?}"
+
+# R3 := [1,1], [1,2], [1,4], [2,1], [2,2], [3,3], [4,1], [4,4]:
+antiSimRel = Relation.new( [1, 2, 3, 4], "TestAntiSimetria")
+antiSimRel.r = {1=>[1, 2, 4], 2=>[1, 2], 3=>[3], 4=>[1, 4]}
+p antiSimRel
+p "Symmetric? #{antiSimRel.isSymmetric?}"
+p "AntiSymmetric? #{antiSimRel.isAntiSymmetric?}"

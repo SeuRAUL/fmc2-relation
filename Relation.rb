@@ -6,6 +6,7 @@ class Relation
   end
   
   attr_reader :r, :set, :definition
+  attr_accessor :r
   
   def relateElements(e1, e2)
     @r[e1] = [] unless @r.has_key?(e1)
@@ -17,7 +18,7 @@ class Relation
   # checks if each element is related to himself
   def isReflexive?
     self.r.each do |k, v|
-      false unless v.include? k
+      return false unless v.include? k
     end
     true
   end
@@ -25,7 +26,7 @@ class Relation
   def isSymmetric?
     self.r.each do |k, v|
       v.each do |vv|
-        false unless self.r.has_key?(vv) and self.r[vv].include? k
+        return false unless self.r.has_key?(vv) and self.r[vv].include? k
       end
     end
     true
@@ -34,7 +35,7 @@ class Relation
   def isAntiSymmetric?
     self.r.each do |k, v|
       v.each do |vv|
-        false unless self.r.has_key?(vv) and self.r[vv].include? k and vv == k
+        return false unless self.r.has_key?(vv) and self.r[vv].include? k and vv == k
       end
     end
     true
