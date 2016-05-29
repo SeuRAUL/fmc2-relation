@@ -1,21 +1,4 @@
-class Relation
-  def initialize(set, definition)
-    @set = set
-    @definition = definition
-    @r = {}
-  end
-  
-  attr_reader :r, :set, :definition
-  
-  def relateElements(e1, e2)
-    @r[e1] = [] unless @r.has_key?(e1)
-    @r[e1] << e2
-  end
-end
-
-def setPair(pair) #vector[2]
-  
-end
+require './Relation.rb'
 
 # takes a set of integers and
 # returns a relation of division. 
