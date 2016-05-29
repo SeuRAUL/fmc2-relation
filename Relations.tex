@@ -1,0 +1,1095 @@
+% --------------------------------------------------------------
+% This is all preamble stuff that you don't have to worry about.
+% Head down to where it says "Start here"
+% --------------------------------------------------------------
+\documentclass[a4paper]{article}
+
+\usepackage[brazilian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+%\title{Relações}
+%\author{Raul Lucena e Silva, Magno Mozer Serrano Soares}
+ 
+\usepackage[margin=1in]{geometry} 
+\usepackage{amsmath,amsthm,amssymb,scrextend}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+
+\usepackage{hyperref}
+
+\usepackage{xcolor}
+
+% Configurando layout para mostrar codigos Maple
+\usepackage{listings}
+\lstset{
+  language=C++,
+  basicstyle=\ttfamily\small, 
+  keywordstyle=\color{blue}, 
+  stringstyle=\color{gray}, 
+  commentstyle=\color{red}, 
+  extendedchars=true, 
+  showspaces=false, 
+  showstringspaces=false, 
+  numbers=left,
+  numberstyle=\tiny,
+  breaklines=true, 
+  backgroundcolor=\color{green!10},
+  breakautoindent=true, 
+  captionpos=b,
+  xleftmargin=20pt,
+}
+ 
+\begin{document}
+
+\lhead{FMC II}
+\chead{Relações}
+\rhead{\today}
+ 
+
+Neste artigo, vamos aprender a usar Maple para trabalhar com relações binárias e n-árias. Nós explicaremos como usar Maple para representar relações binárias usando conjuntos de pares ordenados, usando representações utilizando de matrizes zero-um, e usando grafos dirigidos. Mostraremos como usar Maple para determinar se uma relação tem várias propriedades que utilizam estas diferentes representações.
+
+Nós descreveremos como calcular o fechamento das relações. Em particular, mostraremos como encontrar o fechamento transitivo de uma relação utilizando dois algoritmos diferentes, e nós iremos comparar o tempo necessário para usar esses algoritmos. Depois de explicar como usar o Maple para trabalhar com relações de equivalência, mostraremos como usar o Maple para trabalhar com ordenações parciais. Mostraremos como usar Maple para fazer ordenação topológica e para determinar se uma ordenação parcial é um reticulado. Concluiremos mostrando como usar o Maple para encontrar relações de ordenações parciais.
+
+\section{Uma Introdução às Relações em Maple}
+O primeiro passo para entender as relações e sua manipulação em Maple é determinar como representar as relações em Maple. O leitor notará que não há nenhum pacote de relações específico presente em Maple, e, portanto, a implementação e a representação das relações em Maple pode assumir a forma mais conveniente para a questão em apreço. Possíveis representações de relações em Maple incluem conjuntos de pares ordenados, matrizes zero-um ou gráficos dirigidos, entre muitos outros. Para este capítulo, vamos examinar representações de par ordenado e matrizes zero-um, bem como a representação de gráfico direcionado.
+
+Em primeiro lugar, devem representar relações como pares ordenados. Para este fim, nós construímos um typerel estruturado para as relações. (Note-se que não se pode utilizar a relação nome, uma vez que este tipo já é usado pela biblioteca do Maple). De acordo com a definição, uma relação é um conjunto de pares ordenados de qualquer tipo e de objeto qualquer. O seguinte tipo Maple reflete essa definição.
+
+\begin{lstlisting}
+`type/pair` := [anything, anything];
+`type/rel` := set(pair);
+\end{lstlisting}
+
+Isso é útil, uma vez que nos permite assegurar que, quando passar argumentos para funções, temos utilizado o tipo de dados correto para a entrada. Sendo o nosso tipo rel estruturado, é muito mais fácil escrever rel do que escrever set(anything, anything) após cada argumento de que deve ser interpretado como uma relação. Isso também pode ser feito À mão dentro de cada função, antes do processamento real começar, mas o Maple fornece este tipo verificação automática para nós e resulta em um código mais rápido e, mais importante para nós, mais legível.
+
+Para um exemplo específico, suponha que desejamos estabelecer uma relação que é definida em termos de restrições numéricas, como no Exemplo 4 na página 3577 do texto. No exemplo texto, precisamos criar uma relação R no domínio A=(1,2,3,4) de modo que R={(a,b)|a divide b}. Vamos construir esta relação ao examinar cada possível par ordenado de elementos, e admitindo pares ordenados em R se, e somente se, o par ordenado satisfaz a condição apropriada. Chamaremos R de \textbf{DividesRelation}.
+
+\begin{lstlisting}
+DividesRelation := proc(A::set(integer))
+  local i, j, temp, R;
+  R := {};
+  for i in A do
+    for j in A do
+      if (gcd(i,j) = i) then
+        R := R union [i, j];
+      fi;
+    od;
+  od;
+  RETURN(R);
+end:
+DividesRelation(1,2,3,4);
+\end{lstlisting}
+
+Por conveniência, nós também definir a seguinte variação.
+
+\begin{lstlisting}
+DivRel := proc(n::posint)
+  local i;
+  DividesRelation(seq(i,i=1..n));
+end:
+\end{lstlisting}
+
+Este procedimento constrói a relação divides sobre o conjunto de todos os inteiros no conjunto {1,2,3,...,n}.
+
+Será conveniente ter à mão o seguinte procedimento para criar o dual ou opposite relação de uma determinada relação.
+
+\begin{lstlisting}
+DualRelation := proc(R::rel)
+  local u;
+  map(u -&gt; [ u[2], u[1] ], R);
+end:
+\end{lstlisting}
+
+Isto simplesmente inverte todos os pares que pertencem à relação.
+
+\section{Determinar Propriedades de Relações usando Maple}
+
+Maple pode ser utilizado para determinar se uma relação tem uma propriedade específica, tal como a reflexividade, simetria, antissimetria e transitividade. Isto pode ser realizado através do procedimento de criação do Maple que tomam como entrada a determinada relação, examinando os elementos da relação, e determinar se a relação satisfaz a propriedade dada.
+
+Desde que possamos utilizar isso repetidamente, será conveniente ter uma rotina que irá extrair para nós do domínio de qualquer relação. Nós simplesmente coletamos em conjunto todos os pontos que ocorrem tanto como uma primeira ou uma segunda entrada em algum par na relação. (Não que, estritamente falando, isso não precise ser igual ao domínio da relação, Uma vez que podem, na verdade, existirem pontos no domínio que não são R-relacionados para qualquer outro ponto do domínio. Talvez seja melhor chamar a isto o \textit{effective domain} (domínio efetivo) da relação.
+
+\begin{lstlisting}
+DomainRelation := proc(R::rel)
+  RETURN(map(u-&gt;op(1,u), R)
+  union map(u-&gt;op(2,u), R));
+end:
+\end{lstlisting}
+
+Em primeiro lugar, vamos examinar como determinar se uma relação é reflexiva.
+
+\begin{lstlisting}
+IsReflexive := proc(R::rel)
+  local is_reflexive, # return value
+  u; # index into Dom(R)
+  is_reflexive := true;
+  for u in DomainRelation(R) do
+    is_reflexive := is_reflexive and member([u,u], R);
+  od;
+  RETURN(is_reflexive);
+end:
+\end{lstlisting}
+
+\begin{lstlisting}
+R1 := [1,1], [1,2], [2,1], [2,2], [3,4], [4,1], [4,4]:
+R2 := [1,1], [1,2], [2,1]:
+IsReflexive(R1);
+IsReflexive(R2);
+\end{lstlisting}
+
+Vamos examinar as propriedades simétricas e antissimétricas nos próximos dois procedimentos. Para determinar se uma relação é simétrica vamos simplesmente usar a definição; isto é, verificar se para cada par (a,b) em uma relação, o par (b,a) é também membro da relação. Se descobrirmos um par (a,b) na relação para o qual o par (b,a) não está na relação, então sabemos que a relação não é simétrica. Caso contrário, deve ser simétrica. Esta é a lógica utilizada pelo procedimento seguinte.
+
+\begin{lstlisting}
+IsSymmetric := proc(R::rel)
+  local i, is_symmetric;
+  is_symmetric := true;
+  for i from 1 to nops(R) do
+    if not member( [ R[i][2], R[i][1] ], R) then
+      is_symmetric := false;
+    fi;
+  od;
+  RETURN(is_symmetric);
+end:
+\end{lstlisting}
+
+Para determinar se uma determinada relação R é anti-simétrica, voltamos a usar a definição. Lembre-se que para uma relação R que ser anti-simétrica, ele deve ter a propriedade de que, sempre que um par (a,b) pertencer a R, e o par (b,a) também pertence a R, então devemos ter que a=b. Para verificar isso, nós simplesmente vamos varrer todos os membros u=(a,b) de R, e veja se o par oposto (b,a) pertence a R. Se isso acontecer, e se a$\neq$b, então R não pode ser antissimétrica; caso contrário, ela é.
+
+\begin{lstlisting}
+IsAntiSymmetric := proc(R::rel)
+  local u; # index into R
+  for u in R do
+    if member([op(2,u), op(1,u)], R) and op(1, u) &lt;&gt; op(2, u) then
+      RETURN(false);
+    fi;
+  od;
+  RETURN(true);
+end:
+\end{lstlisting}
+
+Agora usamos os nossos procedimentos para determinar qual das relações definidas anteriormente são simétricas ou antissimétricas.
+
+\begin{lstlisting}
+IsSymmetric(R1); IsSymmetric(R2);
+IsAntiSymmetric(R1); IsAntiSymmetric(R2);
+R3 := [1,1], [1,2], [1,4], [2,1], [2,2], [3,3], [4,1], [4,4]:
+R4 := [2,1], [3,1], [3,2], [4,1], [4,2], [4,3]:
+IsAntiSymmetric(R3); IsAntiSymmetric(R4);
+\end{lstlisting}
+
+Para decidir se uma relação R é transitiva, devemos verificar se (a,c) pertencerá a R quando existirem pares (a,b) e (b,c) que pertencem a R. Fazemos isso examinando todos os pares (a,b) em R, em conjunto com todos os elementos de x do domínio D de R, para ver se um par (b,x) existe em R para o qual o par (x,b) não está em R. Se encontrarmos essa combinação, em sequencia, a relação R não pode ser transitiva; de outra forma, R será.
+
+\begin{lstlisting}
+IsTransitive := proc(R::rel)
+  local DomR, # domain of R
+  u,v,w;# indices into DomR
+  for u in DomR do
+    for v in DomR do
+      for w in DomR do
+        if (member([u,v], R) and member([v,w], R) and not member([u,w], R)) then
+          RETURN(false);
+        fi;
+      od;
+    od;
+  od;
+RETURN(true);
+end:
+
+IsTransitive(R1); IsTransitive(R2);
+IsTransitive(R3); IsTransitive(R4);
+\end{lstlisting}
+
+\section{Relações n-árias em Maple}
+Usando Maple, podemos construir uma relação n-ária, onde n é um número inteiro positivo. O formato para a expressão relação n-ária em Maple é semelhante à da relação 2-ária no Maple. Por exemplo, considere a seguinte relação 4-ária que representa os registros dos alunos.
+
+\begin{lstlisting}
+M1:=[Adams, 9012345,`Politics`, 2.98],
+    [Woo, 9100055, `Film Studies`, 4.99],
+    [Warshall, 9354321, `Mathematics`, 3.66]:
+\end{lstlisting}
+
+O primeiro campo representa o nome do aluno, o segundo campo é o número de identificação do aluno, o terceiro campo é o departamento ao qual o estudante pertence e, finalmente, o último registro armazena a média do estudante.
+
+Com esse exemplo de como usar as relações n-árias, nós iremos construir um procedimento geral para calcular uma determinada projeção de uma relação. O procedimento toma como entrada um conjunto de n-tuplas (enupla) como relação com a imagem, que está a ser projetada sobre. A saída deste processo é um conjunto de m-tuplas.
+
+\begin{lstlisting}
+MakeProjection := proc(R::set, P::list)
+  local i, j, S, temp_list;
+  S := {};
+  for i from 1 to nops(R) do
+    temp_list := [];
+    for j from 1 to nops(P) do
+      temp_list := [ op(temp_list), R[ i ][ P[j] ] ];
+    od;
+    S := S union temp_list;
+  od;
+  S;
+end:
+\end{lstlisting}
+
+Agora vamos examinar este procedimento projeção sobre a relação 4-ário que foi construído anteriormente nesta seção.
+
+\begin{lstlisting}
+MakeProjection(M1, [3,4,1]);
+MakeProjection(M1, [2,4]);
+\end{lstlisting}
+
+Passamos agora de construir as projeções para a construção de junção das relações. A operação de junção tem aplicações em comandos de banco de dados quando as tabelas de informações precisam ser combinadas de forma significativa. A operação de junção que vamos programar em Maple segue este esquema pseudocódigo:
+
+\begin{enumerate}
+\item{Entrada: duas relações de entrada A e B, e um parâmetro inteiro não negativo p;} 
+\item{Analisar cada elemento de A, e determinar os últimos campos de p de cada elemento;}
+\item{Examinar todos os elementos, y, da relação B para determinar se os primeiros campos de p em y coincidem com os últimos campos p de elemento x;}
+\item{Ao encontrar uma correspondência de um elemento em A e um elemento em B, que combinam estes elementos, colocando o resultado em C, que é devolvido como saída.}
+\end{enumerate}
+
+\begin{lstlisting}
+MakeJoin := proc(p, A, B)
+  local i, j, k, C, list_A, list_B, x,
+  ret_elem, is_done;
+  list_A := [];
+  list_B := [];
+  C := {};
+  for i from 1 to p do
+    list_B := [op(list_B), i];
+    list_A := [nops(B[1])-i, op(list_A)];
+  od;
+  for i from 1 to nops(A) do;
+    is_done := false;
+    x := MakeProjection(A[i], list_A);
+    j := 1;
+    while j &lt;= nops(B) and is_done = false do
+      if MakeProjection(B[j], list_B) = x then
+        ret_elem := A[i];
+        for k from p+1 to nops(B[j]) do
+          ret_elem := [op(ret_elem), B[j][k] ];
+        od;
+        is_done := true;
+      fi;
+      j := j+1;
+    od;
+    C := C union ret_elem;
+  od;
+  C;
+end:
+\end{lstlisting}
+
+Nós examinamos como este procedimento funciona no exemplo definido no livro, nas páginas 371 e 372, envolvendo cursos que os professores estão ensinando para determinar onde eles estão localizados no campus.
+
+\begin{lstlisting}
+A:=[Cruz, Zoology, 335],
+   [Cruz, Zoology, 412],
+   [Farber, Psychology, 501],
+   [Farber, Psychology, 617],
+   [Grammer, Physics, 544],
+   [Grammer, Physics, 551],
+   [Rosen, Computer, 518],
+   [Rosen, Mathematics, 575]:
+B:=[Computer, 518, N521, 14],
+   [Mathematics, 575, N502, 15],
+   [Mathematics, 611, N521, 16],
+   [Physics, 544, B505, 16],
+   [Psychology, 501, A100, 15],
+   [Psychology, 617, A110, 11],
+   [Zoology, 335, A100, 9],
+   [Zoology, 412, A100, 8]:
+MakeJoin(2, A, B);
+\end{lstlisting}
+
+\section{Representar relações como dígrafos e Matrizes Zero-Um}
+Como foi dito no início deste capítulo, o Maple permite representar e manipular as relações em uma variedade de formas. Vimos como o pacote \textbf{combinat} do Maple permite que o produto cartesiano possa ser usado para gerar relações e, nesta seção, vamos utilizar os pacotes \textbf{networks} (redes) e \textbf{linalg} para representar e manipular as relações. Nós explicamos como usar Maple para trabalhar com relações usando a representação das relações como conjuntos de pares ordenados. Nesta seção, vamos mostrar como usar o Maple para trabalhar com as relações usando dois métodos alternativos para representar essas relações. Em primeiro lugar, vamos explicar como representar relações como grafos dirigidos; isto requer o uso do pacote \textit{Maple} \textbf{networks}. Em segundo lugar, vamos mostrar como para representar as relações utilização de metrizes zero-um; isto requer o uso do pacote \textit{Maple} \textbf{linalg}. Veremos que o uso dessas representações alternativas de relações nos permite usar uma ampla gama de capacidades do Maple para resolver problemas que envolvem as relações.
+
+\subsection{Representando Relações Usando Grafos Dirigidos}
+Começamos analisando a forma de representar as relações usando grafos dirigidos em Maple, com a ajuda do pacote \textbf{networks}. Para começar, vamos carregar o pacote \textbf{networks}.
+
+\begin{lstlisting}
+with(networks):
+\end{lstlisting}
+
+Agora, podemos converter nossas relações que foram representadas no formato de par ordenado em um grafo dirigido usando o seguinte algoritmo simples, chamado \textbf{MakeDigraph}.
+
+\begin{lstlisting}
+MakeDigraph := proc(A::set,R::set)
+  local G;
+  new(G);
+  addvertex(A, G);
+  addedge(R, G);
+  RETURN(G);
+end:
+G1 := MakeDigraph(1,2,3,4,R1);
+R1;
+\end{lstlisting}
+
+O procedimento novo do pacote networks cria uma ocorrência de um gráfico, e addedge faz exatamente o que seu nome sugere: ele adiciona uma borda para o gráfico que é seu segundo argumento. (Uma discussão mais completa dessas rotinas serão apresentados no Capítulo 7.)
+
+Podemos agora usar essa representação gráfica da relação R1 para deduzir se é ou não é transitiva. Para fazer isso, usamos o algoritmo all-pairs shortest path (todos os pares de caminho mais curto), denotado como allpairs em Maple. Especificamente, desejamos determinar que se uma borda (a,b) e uma borda (b,c) ocorrem no gráfico, então a borda (a,c) deve ocorrer também. Por isso, usamos o seguinte esboço pseudocódigo.
+
+\begin{enumerate}
+\item{Entrada: um gráfico G, que representa uma relação R;}
+\item{Executar o algoritmo all-pairs shortest path em G, que retorna o caminho mais curto entre dois pontos quaisquer;}
+\item{Se há um par de elementos que tem comprimento finito que é maior do que 1, então sabe que o grafo não é reflexivo;}
+\item{Caso contrário, temos tudo (finitos) comprimentos entre os elementos um, de modo que, se (a,b) é um par e (b,c) é um par, então a distância de a para c é 1 (Uma vez que este é o único comprimento possível, já que foram eliminados os comprimentos finitos que são maiores do que 1, no passo 3), por isso (a,c) tem de ser uma borda, e, portanto (a,c) está na relação R.}
+\item{Saída: o valor da decisão a partir das etapas 3 e 4.}
+\end{enumerate}
+
+A implementação deste pseudocódigo é a seguinte;
+
+\begin{lstlisting}
+IsTransitive_G := proc(G::graph)
+  local i, j, S, T, is_trans;
+  is_trans := true;
+  T := allpairs(G);
+  S := vertices(G);
+  for i from 1 to nops(S) do;
+    for j from 1 to nops(S) do;
+      if T[S[i],S[j] ] &gt; 1 and T[S[i],S[j] ] &lt;infinity then
+        is_trans := false
+      fi;
+    od;
+  od;
+  is_trans;
+end:
+IsTransitive_G(G1);
+R2;
+IsTransitive_G(MakeDigraph(1,2,3,4,R2));
+\end{lstlisting}
+
+Você deve examinar outras formas de manipular a representação gráfica das relações em Maple. Em particular, depois de ter estudado o Capítulo 7, você pode explorar uma variedade de maneiras de manipular gráficos, e ver como as informações sobre as relações podem ser extraídos a partir deles.
+
+\subsection{Relações representando Usando Matrizes Zero-One}
+Vamos agora considerar a representação das relações de matrizes zero-um. Para começar, uma vez que estará trabalhando com matrizes, é preciso indicar que estaremos usando as funções do pacote \textit{Maple} \textbf{linalg}. Especificamente, teremos de usar a função de \textbf{matrix} (matriz), e as operações da matriz relacionados, do pacote \textbf{linalg}.
+
+\begin{lstlisting}
+with(linalg):
+\end{lstlisting}
+
+Agora, nós fornecemos um procedimento Maple, que encontra a representação de matriz zero-um de uma relação, dados os pares ordenados nesta relação. O pseudocódigo para este algoritmo é como se segue;
+
+\begin{enumerate}
+\item{Entrada: o conjunto R e domínio D.}
+\item{Para cada par (i,j) em D, que determinar se a (i,j) está em R.}
+\item{Se o par está em R, colocamos uma entrada 1 na posição que representa (i,j) na matriz M. Caso contrário, coloca-se um 0 na posição que representa (i,j) na matriz M.}
+\item{Saída: M.}
+\end{enumerate}
+
+Traduzindo esse algorítmo para o Maple, o codigo resulta no seguinte procedimento.
+
+\begin{lstlisting}
+MakeMatrix := proc (R::set, D::set)
+  local i, j, L;
+  L := [];
+  for i from 1 to nops(D) do
+    for j from 1 to nops(D) do
+      if member([i,j],R) then
+        L := [op(L), 1] else L := [op(L),0];
+      fi;
+    od;
+  od;
+  evalm(matrix(nops(D), nops(D), L));
+end:
+\end{lstlisting}
+
+Em seguida, vamos converter as relações definidas no início deste capítulo de sua forma conjunto para representação de forma zero-um.
+
+\begin{lstlisting}
+m1:=MakeMatrix(R1,1,2,3,4);
+m2:=MakeMatrix(R2,1,2,3,4);
+m3:=MakeMatrix(R3, 1,2,3,4);
+m4:=MakeMatrix(R4,1,2,3,4);
+\end{lstlisting}
+
+Agora que temos as representações de zero-um da matriz dessas relações, podemos usar essas matrizes para determinar se as relações são reflexivas, simétricas e/ou antissimétricas. Nesta forma, é um pouco mais fácil para determinar se uma a relação tem alguma destas propriedades. Aqui, por exemplo, é um procedimento em Maple que determina se uma relação é reflexiva, utilizando a sua representação matricial de zero-um.
+
+\begin{lstlisting}
+IsReflexive_M:= proc(M::matrix)
+  local i, is_reflex;
+  is_reflex := true;
+  for i from 1 to coldim(M) do
+    if M[i,i] = 0 then
+      is_reflex := false;
+    fi;
+  od;
+  is_reflex;
+end:
+IsReflexive_M(m1);
+IsReflexive_M(m3);
+\end{lstlisting}
+
+Aqui também estão as versões de matriz para \textbf{IsSymmetric} e \textbf{IsAntiSymmetric}.
+
+\begin{lstlisting}
+IsSymmetric_M := proc(M::matrix)
+  local i,j; # row and column indices
+  if rowdim(M) &lt;&gt; coldim(M) then
+    RETURN(false);
+  fi;
+  for i from 1 to rowdim(M) do
+    for j from 1 to i-1 do
+      if M[i,j] &lt;&gt; M[j,i] then
+        RETURN(false);
+      fi;
+    od;
+  od;
+  RETURN(true);
+end:
+\end{lstlisting}
+
+Deve ser quadrada.
+O código para verificar antissimetria é semelhante.
+
+\begin{lstlisting}
+IsAntiSymmetric_M := proc(M::matrix)
+  local i,j;
+  if rowdim(M) &lt;&gt; coldim(M) then
+    RETURN(false);
+  fi;
+  for i from 1 to rowdim(M) do
+    for j from 1 to i - 1 do
+      if M[i,j] = 1 and M[i,j] = M[j,i] then
+        RETURN(false);
+      fi;
+    od;
+  od;
+  RETURN(true);
+end:
+\end{lstlisting}
+
+Mais uma vez, podemos determinar se as relações representadas em forma de matriz zero-um são simétricas ou antissimétricas.
+
+\begin{lstlisting}
+IsSymmetric_M(m1); IsAntiSymmetric_M(m1);
+IsSymmetric_M(m2); IsAntiSymmetric_M(m2);
+IsSymmetric_M(m4); IsAntiSymmetric_M(m4);
+\end{lstlisting}
+
+\section{Fecho Computacional de Relações}
+Determinar o fecho de uma relação em Maple pode ser abordado basicamente da mesma forma que abordamos o problema de determinar as propriedades das relações. Especificamente, deve implementar algoritmos que utilizam técnicas semelhantes para determinação das propriedades reflexivas e simétricas, a fim de determinar o fecho dessas propriedades relacionais. O fecho transitivo da relação vai exigir mais conhecimento, mas vamos analisar vários métodos para determinar o fecho transitivo de uma determinada relação.
+
+\subsection{Fecho reflexivo}
+O algoritmo para calcular o fecho reflexivo de uma relação é realmente muito simples. Nós simplesmente definimos cada entrada diagonal em sua representação matricial igual a 1. A matriz resultante representa o fecho reflexivo da relação.
+
+\begin{lstlisting}
+RefClose := proc(M::matrix)
+  local i;
+  for i from 1 to coldim(M) do
+    M[i,i] := 1;
+  od;
+  evalm(M);
+end:
+\end{lstlisting}
+
+Agora usamos \textbf{RefClose} para encontrar o fecho reflexivo de algumas das relações que introduzimos como exemplos no início do capítulo.
+
+\begin{lstlisting}
+RefClose(m1); RefClose(m4);
+\end{lstlisting}
+
+\subsection{Fecho simétrico}
+Em seguida, vamos construir um processo de determinação do fecho simétrico de uma relação R. Novamente, usamos a observação, a partir da página 3822, que observa que, se (a,b) é um elemento de R, então (b,a) é um elemento do fecho simétrico de R. O código em Maple, o qual é semelhante ao fecho reflexivo implementado acima, é:
+
+\begin{lstlisting}
+SymmClose := proc(M::matrix)
+  local i, j;
+  for i from 1 to coldim(M) do
+    for j from 1 to rowdim(M) do
+      if M[i,j] = 1 then
+        M[j,i] := 1;
+      fi;
+    od;
+  od;
+  evalm(M);
+end:
+\end{lstlisting}
+
+Este procedimento pode ser usado para localizar o fecho simétrico da alguns dos nossos exemplos anteriores, como se segue.
+
+\begin{lstlisting}
+SymmClose(m1); SymmClose(m4);
+\end{lstlisting}
+
+\subsection{Fecho transitivo}
+Tendo criado os fechos mais simples, das propriedades reflexivas e simétricos, nós agora nos concentraremos na implementação do fecho transitivo em Maple, que é um problema mais difícil do que os casos anteriores em termos de complexidade computacional. No texto, há dois algoritmos descritos, ou seja, um fecho transitivo genérico e um algoritmo de Warshall, e ambos serão abordados nesta seção.
+
+Para implementar o fecho transitivo, precisamos implementar tanto o juntar booleano quanto as operações de produto booleanas, previamente introduzido no Capítulo 2. Para começar, vamos criar as funções auxiliares booleana que nos permitem converter entre zero e um e valores verdadeiro-falso.
+
+\begin{lstlisting}
+with(linalg):
+int_to_bool(0) := false:
+int_to_bool(1) := true:
+bool_to_int(true) := 1:
+bool_to_int(false) := 0:
+\end{lstlisting}
+
+Em seguida, vamos construir o booleano se juntar a função, novamente com base no trabalho anterior do capítulo 3.
+
+\begin{lstlisting}
+BoolJoin := proc(A::matrix, B::matrix)
+  local i, j, C;
+  C := matrix(rowdim(A), coldim(A), zeroes);
+  for i from 1 to rowdim(A) do
+    for j from 1 to coldim(A) do
+      C[i,j] := int_to_bool(A[i,j]) or int_to_bool(B[i,j]);
+    od;
+  od;
+  map(bool_to_int,C);
+end:
+\end{lstlisting}
+
+Após isso, nós construímos o produto booleano.
+
+\begin{lstlisting}
+BoolProd := proc(A::matrix, B::matrix)
+  local i, j, k, C;
+  C := matrix(rowdim(A), coldim(B), zeroes);
+  for i from 1 to rowdim(A) do
+    for j from 1 to coldim(B) do
+      C[i,j] := false;
+      for k from 1 to coldim(A) do
+        C[i,j] := C[i,j]
+        or (int_to_bool(A[i,k])
+        and int_to_bool(B[k,j]));
+      od;
+    od;
+  od;
+  map(bool_to_int, C);
+end:
+\end{lstlisting}
+
+Agora estamos prontos para começar a aplicar o procedimento para o cálculo do fecho transitivo, tal como definido na página 3877 do texto.
+
+\begin{lstlisting}
+TransClosure := proc(M::matrix)
+  local i, A, B;
+  A := M;
+  B := A;
+  for i from 2 to coldim(M) do
+    A := BoolProd(A, M);
+    B := BoolJoin(B, A);
+    evalm(A);
+    evalm(B);
+  od;
+  evalm(B);
+end:
+\end{lstlisting}
+
+Nós testamos nosso procedimento de fecho transitivo em um exemplo.
+
+\begin{lstlisting}
+T1 := matrix(3,3,[1,0,1,0,1,0,1,1,0]):
+TransClosure(T1);
+\end{lstlisting}
+
+Em seguida, vamos examinar como o algoritmo de Warshall compara (em termos de tempo de execução de um exemplo simples) para este algoritmo geral que acabamos de implementar. Em primeiro lugar, temos de implementar o algoritmo de Warshall em Maple.
+
+\begin{lstlisting}
+Warshall := proc(M::matrix)
+  local i, j, k, W, n;
+  W := map(int_to_bool,M);
+  n := coldim(M);
+  for k from 1 to n do
+    for i from 1 to n do
+      for j from 1 to n do
+        W[i,j] := W[i,j] or (W[i,k] and W[k,j]);
+      od;
+    od;
+  od;
+  evalm(map(bool_to_int, W));
+end:
+Warshall(T1);
+\end{lstlisting}
+
+Podemos comparar estes dois procedimentos em termos de tempo de execução usando o comando do tempo no Maple. Mas, devemos notar que esta comparação em um único exemplo não prova nada; ao contrário, ela é útil para ilustrar geralmente os tempos de execução para os dois algoritmos que foram implementados. Para fazer essa ilustração, vamos criar uma matriz zero-um que opera sobre o conjunto A = {1,2,3,4}.
+
+\begin{lstlisting}
+T2:=matrix(4, 4, [0,0,0,1,1,0,1,0,1,0,0,1,0,0,1,0]);
+st:=time():Warshall(T2):time()-st;
+st:=time():TransClosure(T2):time()-st;
+\end{lstlisting}
+
+A partir deste exemplo, podemos ver que no algoritmo do Warshall pode ser uma melhoria substancial sobre o método que utiliza junção e produtos booleanos, neste exemplo específico. O leitor é encorajado a explorar mais que este.
+
+\section{Relações de equivalência}
+Examinaremos, nesta seção, como podemos usar o Maple para calcular com relações de equivalência. Há três problemas específicos que vamos abordar aqui: como calcular a classe de equivalência de um elemento, dada uma relação de equivalência em um conjunto; como determinar o número de relações de equivalência em um conjunto finito; e, como calcular a relação de equivalência menor que contém uma dada relação em algum conjunto finito.
+
+Para começar, vamos primeiro fornecer um teste para uma relação estar em uma relação de equivalência. Usando o trabalho que já fizemos, e recordando que uma relação de equivalência é simplesmente aquele que é reflexiva, simétrica e transitiva, o nosso trabalho é simples.
+
+\begin{lstlisting}
+IsEqRel := IsTransitive @ IsSymmetric @ IsReflexive;
+\end{lstlisting}
+
+Recorde-se que, tendo uma relação de equivalência de R, e um membro a do domínio de R, a classe de equivalência de um é o conjunto de todos os membros b do domínio de R para o qual o par (a,b) pertence a R. Em outras palavras, é o conjunto de todos os elementos no domínio de R que são R-equivalentes para a. Assim, o algoritmo usado para construir a classe de equivalência de um é muito simples: nós apenas iremos pesquisar R procurando todos os pares da forma (a,b), acrescentando cada um desses segundo elemento b para a classe. Não precisamos procurar por pares da forma (b,a), porque as relações de equivalência são simétricas. Dada uma relação de equivalência, e um ponto no seu domínio, esse procedimento retorna a classe de equivalência do ponto.
+
+\begin{lstlisting}
+EqClass := proc(R::set, a::anything)
+  local i, S;
+  S := {};
+  for i from 1 to nops(R) do
+    if R[i][1] = a then
+      S := S union R[i][2];
+    fi;
+  od;
+  RETURN(S);
+end:
+EqClass([0,0],[0,2],[1,0],[1,1], [2,1],[1,2],[0,1], 0);
+\end{lstlisting}
+
+Agora apresentamos um procedimento que constrói todas as relações de equivalência em um determinado conjunto.
+
+\begin{lstlisting}
+DetermineEqClass := proc(A::set)
+  local P, Q, S, E, i, j, p;
+  S := {};
+  E := {};
+  for i from 1 to nops(A) do
+    for j from 1 to nops(A) do
+      S := S union [A[i], A[j] ] ;
+    od;
+  od;
+  P := combinat[powerset](S);
+  for p in P do
+    if IsSymmetric(p) and IsReflexive(p) and IsTransitive(p) then
+      E := E union p;
+    fi;
+  od;
+  RETURN(E);
+end:
+DetermineEqClass(1,2);
+DetermineEqClass(1,2,3);
+\end{lstlisting}
+
+Como última questão a ser analisada nesta seção, vamos determinar a relação de equivalência menor que contém uma determinada relação. O elemento motivador no algoritmo é o fato de que precisamos para gerar uma relação P contendo a relação determinada R tal que P é simétrica, reflexiva e transitiva. Recordando a seção sobre fechos, deduzimos a seguinte algoritmo em pseudocódigo para determinar a relação de equivalência P contendo a relação R:
+
+\begin{enumerate}
+\item{Criar o fecho reflexivo da relação R; chamam isso de P.}
+\item{Criar o fecho simétrico da relação P e chamar este Q. Observe que Q ainda é reflexiva já que não há elementos foram removidos, assim que todos os pares diagonais (a,a) ainda pertencem ao Q.}
+\item{Criar o fecho transitivo da relação Q e devolver o presente como saída. Este é reflexivo, pela mesma razão, conforme descrito na etapa anterior. Esta relação também é simétrica, já que, se (a,b) e (b,c) implica a inclusão de um elemento (a,c), em seguida, uma vez que executou o fecho simétrico, sabemos que existem elementos (c,b) e (b,a) de modo a que também temos o elemento (c,a). Daí a relação final será transitiva, reflexiva e simétrica.}
+\end{enumerate}
+
+Nós implementamos isso em Maple como a composição dos quatro funções: \textbf{Warshall}, \textbf{SymmClose}, \textbf{RefClose}, e \textbf{MakeMatrix}.
+
+\begin{lstlisting}
+EqContainment := Warshall @ SymmClose @ RefClose @ MakeMatrix;
+R2;
+EqContainment(R2, 1,2,3,4);
+\end{lstlisting}
+
+\section{Ordenamento parcial e elementos mínimos}
+Nesta seção, analisamos \textit{posets}, \textit{máximos} e \textit{mínimos}, assim como as ideias de supremo, ínfimo e ordenação topológica. Vamos explorar esses tópicos em Maple, e vamos deixar a exploração dos outros tópicos desta secção para o leitor.
+
+Primeiro, vamos definir um novo tipo em \textit{Maple} para ordens parciais. Para esta parte, vamos considerar uma ordem parcial a ser um conjunto de pares ordenados (um objeto do tipo \textbf{rel}) que satisfaz as três condições necessárias para uma relação a ser uma ordem parcial: reflexividade (\textit{reflexivity}), antissimetria (\textit{antisymmetry}) e transitividade (\textit{transitivity}).
+
+\begin{lstlisting}
+`type/po` := proc(obj)
+  type(obj, rel) and IsReflexive(obj)
+  and IsAntiSymmetric(obj)
+  and IsTransitive(obj);
+end:
+\end{lstlisting}
+
+Isto ilustra uma outra maneira em que você pode definir novos tipos em Maple, deverá a álgebra de tipos estruturados revelar-se insuficiente.
+
+Em seguida, vamos construir um procedimento que determina o conjunto de elementos mínimos de um conjunto parcialmente ordenado. O procedimento a seguir usa dois argumentos: uma ordem de \textbf{R} parcial, e um subconjunto \textbf{S} do domínio de \textbf{R}. Ele retorna o conjunto de elementos mínimos de \textbf{S} com respeito à ordenamento \textbf{R}.
+
+\begin{lstlisting}
+MinimalElements := proc(R::po, S::set)
+  local M, # set of minimal elements of S; returned
+  s,t; # indices into S
+  if S minus DomainRelation(R) &lt;&gt; {} then
+    ERROR(`set must be contained in the domain of the relation`);
+  fi;
+  M := S;
+  for s in S do
+    for t in S minus s do
+      if member([t,s], R) then
+        M := M minus s;
+      fi;
+    od;
+  od;
+  RETURN(M);
+end:
+R := DividesRelation(1,2,3,6);
+MinimalElements(R, 1,2,3,6);
+MinimalElements(R, 2,3,6);
+\end{lstlisting}
+
+Note-se que, pela dualidade, obtemos - quase de graça - uma forma muito simples implementação de elementos máximos (\textit{MaximalElements}).
+
+\begin{lstlisting}
+MaximalElements := proc(R::po, S::set)
+  MinimalElements(DualRelation(R), S);
+end:
+MaximalElements(R, 1,2,3,6);
+MaximalElements(R, 1,2,3);
+\end{lstlisting}
+
+Em seguida, vamos construir um procedimento para calcular os elementos mínimos de um conjunto no que diz respeito a uma determinada ordem parcial, se ele existir. Nosso procedimento irá retornar o valor NULL no caso de o conjunto que tenha nenhum limite mínimo superior. Vamos realizar em várias etapas. Para fazer isso, primeiro escrevemos um procedimento que irá calcular o conjunto de todos os limites superiores de um subconjunto de um conjunto parcialmente ordenado. Este procedimento, por sua vez, se baseia na sequência de utilidade para determinar se um determinado elemento é um limite superior para um conjunto.
+
+\begin{lstlisting}
+IsUpperBound := proc(R::po, S::set, u::anything)
+  local s; # index into S
+\end{lstlisting}
+verificação de sanidade:
+\begin{lstlisting}
+  if not member(u, DomainRelation(R)) then
+    ERROR(`bad arguments`);
+  fi;
+  for s in S do
+    if not member([s, u], R) then
+      RETURN(false);
+    fi;
+  od;
+  RETURN(true);
+end:
+UpperBounds := proc(R::po, S::set)
+  local U, # set of upper bounds of S; returned
+  DomR, # domain of R
+  d; # index into DomR
+  DomR := DomainRelation(R);
+\end{lstlisting}
+verificação de erros:
+\begin{lstlisting}
+  if S minus DomR &lt;&gt; {} then
+    ERROR(`set must be contained in the domain of the relation`);
+  fi;
+  U := {};
+  for d in DomR do
+    if IsUpperBound(R, S, d) then
+      U := U union d;
+    fi;
+  od;
+  RETURN(U);
+end:
+\end{lstlisting}
+
+Em seguida, é conveniente introduzir um procedimento chamado \textbf{mub} que calcula o conjunto de limites mínimos da cota superior de um subconjunto de um conjunto parcialmente ordenado.
+
+\begin{lstlisting}
+mub := proc(R::po, S::set)
+  MinimalElements(R, UpperBounds(R, S));
+end:
+\end{lstlisting}
+
+Agora, para completar a tarefa em mãos, precisamos apenas verificar se mub retorna uma única coisa. Se assim for, então o supremo (por definição); caso contrário, não faz, e nós devolver o valor NULL.
+
+\begin{lstlisting}
+lub := proc(R::po, S::set)
+  local M; # set of minimal upper bounds of S
+  M := mub(R, S);
+  if nops(M) &lt;&gt; 1 then
+    RETURN(NULL);
+  fi;
+  RETURN(op(M));
+end:
+\end{lstlisting}
+
+A ordenação topológica é usada para produzir, a partir de uma dada ordem parcial, uma ordem linear no seu domínio que é compatível com o mesmo. Por exemplo, a ordem natural no conjunto {1,2,3,6} é uma ordem linear que é compatível com a ordem parcial de divisibilidade. (de fato, isso é verdade para a rede de divisores de qualquer inteiro positivo uma vez que, se \textit{m} e \textit{n} são inteiros positivos, em seguida, \textit{m} divide \textit{n} somente se \textit{m} é menor ou igual \textit{n}). Tendo implementado supremo e elementos mínimos, podemos agora criar um procedimento ordenação topológica que usa o algoritmo \textit{MinimalElements} acima.
+
+\begin{lstlisting}
+TopSort := proc(R::po, T::set)
+  local i, k, S, A;
+  k := 1;
+  S := T;
+  A := [];
+  while S &lt;&gt; {} do
+    A := [op(A), MinimalElements(R, S)[1] ];
+    S := S minus A[k];
+    k := k+1;
+  od;
+  A;
+end:
+R := DivisorLattice(12);
+TopSort(R, DomainRelation(R));
+R := DivisorLattice(2*3*5);
+TopSort(DualRelation(R), DomainRelation(R));
+R := DivisorLattice(2*3*5*7);
+TopSort(R, numtheory[divisors](2*3*7));
+\end{lstlisting}
+
+\section{Grades}
+Nesta seção, vamos olhar para o problema de determinar se uma ordem parcial é reticulada. A abordagem que devemos tomar é um bom exemplo de \textit{top down programming} (programação de cima para baixo).
+
+Para que possamos construir alguma exemplo interessante, vamos introduzir uma nova função para produzir exemplos de uma boa classe de reticulados.
+
+\begin{lstlisting}
+DivisorLattice := proc(n::posint)
+  DividesRelation(numtheory[divisors](n));
+end:
+\end{lstlisting}
+
+O procedimento \textbf{divisors}, do pacote \textbf{numtheory}, retorna o conjunto de divisores positivos de seu argumento inteiro. Usamos o procedimento \textbf{DividesRelation}, construído no início deste capítulo, para criar a relação de divisão neste conjunto.
+
+\begin{lstlisting}
+type(DivRel(6), po);
+\end{lstlisting}
+
+Queremos escrever um programa em \textit{Maple} que irá determinar se uma ordem parcial (finita) é um reticulado. Agora, uma ordem de \textit{R} parcial é um reticulado, se, e somente se, é tanto um \textit{meet semilattice} quanto um \textit{join semilattice}. A primeira é uma ordem parcial em que cada par de elementos tem um encontro - um limite mínimo superior ou supremo; Segundo, é aquele em que a dupla condição for satisfeita: cada par de elementos tem um supremo, ou um ínfimo. Então, o nosso teste para uma ordem parcial deve ser um reticulado, apenas precisa de verificar se estas duas condições são satisfeitas.
+
+\begin{lstlisting}
+IsLattice := proc(R::po)
+  IsMeetSemiLattice(R) and IsJoinSemiLattice(R);
+end:
+\end{lstlisting}
+
+Em seguida, usamos o fato de que uma ordem parcial é um \textit{meet semilattice}, se, e somente se, a sua relação dual é um \textit{join semilattice}.
+
+\begin{lstlisting}
+IsJoinSemiLattice := IsMeetSemiLattice @ DualRelation;
+\end{lstlisting}
+
+Agora o verdadeiro trabalho começa; devemos codificar a função \textbf{IsMeetSemiLattice}. Para isso, é preciso testar se, dada a relação \textit{R}, cada par \textit{a}, \textit{b} no domínio da \textit{R} tem um supremo com relação a \textit{R}. Uma observação que simplifica a nossa tarefa consideravelmente é que, uma vez que estamos a lidar apenas com relações finitas, basta verificar que cada par tem um limite superior comum.
+
+\begin{lstlisting}
+IsMeetSemiLattice := proc(R::po)
+  local DomR, # the domain of R
+  r,s; # indices into R
+  DomR := DomainRelation(R);
+  for r in DomR do
+    for s in DomR do
+      if lub(R, r, s) = NULL then
+        RETURN(false);
+      fi;
+    od;
+  od;
+RETURN(true);
+end:
+\end{lstlisting}
+
+Finalmente, todas as sub-rotinas que estão fazendo o nosso programa \textbf{IsLattice} estão completas, e podemos testá-lo em alguns exemplos. O seguinte resultado não deve vir com qualquer surpresa.
+
+\begin{lstlisting}
+IsLattice(DivisorLattice(24));
+\end{lstlisting}
+
+Mas, observe o que acontece quando nós construímos a relação \textit{divides} em todos os inteiros no conjunto {1,2,3, ..., 24}.
+
+\begin{lstlisting}
+IsLattice(DividesRelation(seq(i, i=1..24)));
+\end{lstlisting}
+
+\section{Relações de abrangência}
+É muito ineficiente, em geral, armazenar todos os pares em uma relação de ordem parcial. Há uma representação mínima de uma ordem parcial, a partir do qual toda a relação pode ser reconstruída, denominado sua relação de abrangência. (Isto não é abordado no texto, mas será útil para nós na seção seguinte, além de ser um tema importante por si só). A relação de abrangência de uma ordem parcial não é em si uma ordem parcial. É um subconjunto mínimo da ordem parcial a partir do qual todos os outros pares de relação podem ser deduzidos. Seja \textit{R} uma ordem parcial em um conjunto \textit{S}. Dizemos que um elemento \textit{b} em \textit{S} abrange um elemento \textit{a} em \textit{S} se (\textit{a}, \textit{b}) pertence a \textit{R}, e \textit{a}$\neq$\textit{b}, mas não há elemento \textit{s} em \textit{S} para o qual ambos (\textit{a}, \textit{s}) e (\textit{s}, \textit{b}) pertencem a \textit{R}. Em outras palavras, \textit{b} abrange \textit{a} se \textit{b} é maior do que \textit{a}, e se não há nada entre eles. A relação de abrangência de uma ordem \textit{R} parcial é a relação \textit{C} de \textit{S} que consiste naqueles pares (\textit{a}, \textit{b}) em \textit{R} para o qual \textit{b} abrange \textit{a}. Como um exemplo simples, considere o conjunto {1,2,3,4} ordenado pela magnitude. Sua relação de abrangência é o conjunto {(1,2), (2,3), (3,4)}. Todos os outros pares, tais como (1,3), pode ser deduzida a partir da relação de abrangência, usando transitividade: 1 $\le$ 2 $\le$ 3, e, portanto, uma 1 $\le$ 3 (isto é, o par (1,3) está na relação). Relações de abrangência também são importantes porque é a relação de abrangência de uma ordem parcial que é desenhada num diagrama de Hasse, em vez de toda a relação.
+
+Nesta seção, nós fornecemos um procedimento em Maple para calcular a relação cobrindo de uma ordem parcial. Em primeiro lugar, precisamos de um teste para saber se um determinado elemento cobre outro.
+
+\begin{lstlisting}
+Covers := proc(R::po, a, b)
+  local u; # index into Dom(R)
+  if a = b then
+    RETURN(false);
+  fi;
+  if not member([a,b], R) then
+    RETURN(false);
+  fi;
+  for u in DomainRelation(R) minus a, b do
+    if member([a,u], R) and member([u,b], R) then
+      RETURN(false);
+    fi;
+  od;
+  RETURN(true);
+end:
+\end{lstlisting}
+
+Agora podemos construir a relação cobrindo de uma ordem parcial usando o seguinte procedimento em Maple:
+
+\begin{lstlisting}
+CoveringRelation := proc(R::po)
+  local C, # covering relation; returned
+  DomR, # the domain of R
+  r,s; # indices into DomR
+  DomR := DomainRelation(R);
+  C := {};
+  for r in DomR do
+    for s in DomR do
+      if Covers(R, r, s) then
+        C := C union [r,s];
+      fi;
+    od;
+  od;
+  RETURN(C);
+end:
+\end{lstlisting}
+
+Vejamos alguns pequenos exemplos.
+
+\begin{lstlisting}
+CoveringRelation(DivisorLattice(6));
+CoveringRelation(DividesRelation(1,3,5,7,11,13,17));
+\end{lstlisting}
+
+\section{Diagramas de Hasse}
+A relação de abrangência de uma ordem parcial é muitas vezes usada para representar uma ordem parcial. Nós já mencionamos que é mais eficiente (o que exige menos memória), mas também é usada para representar uma ordem parcial graficamente, no sentido de que o diagrama de Hasse é apenas uma representação visual da relação de abrangência da ordem parcial. Nós já temos a maioria das ferramentas de que precisamos para fazer uma primeira tentativa de uma representação visual de uma ordem parcial. As ferramentas de visualização no pacote \textbf{networks} tornam relativamente fácil de desenhar uma imagem gráfica de uma ordem parcial. Nós simplesmente calculamos sua relação de abrangência, e depois a convertemos para um gráfico e a exibimos como no seguinte procedimento.
+
+\begin{lstlisting}
+HasseDiagramFirstTry := proc(R::po)
+  local C;
+  C := CoveringRelation(R);
+  networks[draw](MakeDigraph(DomainRelation(C),C));
+end:
+\end{lstlisting}
+
+Por exemplo, aqui está uma imagem do divisor reticulado de 2100.
+
+\begin{lstlisting}
+HasseDiagramFirstTry(DivisorLattice(2*3*5*7));
+\end{lstlisting}
+
+Infelizmente, esta sofre da desvantagem de não desenhar diagramas Hasse na forma tradicional, com o fim de os elementos representados pelo fluxo do diagrama. Para corrigir isso, precisamos fazer um pouco de codificação. A ideia é organizar os elementos de um ordenado parcialmente definida em níveis, e então usar a opção \textbf{Linear} para rotina \textbf{draw} para formar o diagrama mais apropriadamente. Várias rotinas de serviços públicos são necessárias. Esta função é usada para verificar se um elemento é um átomo; isto é, que não tem precedentes. Destina-se a ser utilizado apenas com relações de abrangência \textbf{CR}. O argumento extra \textbf{D} é necessário para que possamos localizá-lo mais tarde.
+
+\begin{lstlisting}
+IsAtom := proc(CR::rel, D::set, a::anything)
+  local d;
+  for d in D do
+    if member([d,a], CR) then
+\end{lstlisting}
+encontrou um predecessor:
+\begin{lstlisting}
+      RETURN(false);
+    fi;
+  od;
+\end{lstlisting}
+deve ser um átomo:
+\begin{lstlisting}
+  RETURN(true);
+end:
+\end{lstlisting}
+
+Nós usamos isso no próximo procedimento, que determina todos os átomos em um determinado subconjunto de uma relação de cobertura.
+
+\begin{lstlisting}
+Atoms := proc(CR::rel, D::set)
+  local A, # set of atoms; returned
+  d; # index into D
+  A := {};
+  for d in D do
+    if IsAtom(CR, D, d) then
+      A := A union d;
+    fi;
+  od;
+  RETURN([op(A)]);
+end:
+\end{lstlisting}
+
+Aqui é a nossa nova implementação do Diagrama de Hasse. A maior parte do novo trabalho envolve a disposição dos elementos do conjunto parcialmente ordenado em uma sequência de níveis para passar para \textbf{Linear} na rotina \textbf{draw}.
+
+\begin{lstlisting}
+HasseDiagram := proc(R::po)
+  local L, C, G, A, D;
+  C := CoveringRelation(R);
+  D := DomainRelation(C); # = DomainRelation(R)
+  G := MakeDigraph(D, R);
+  L := NULL;
+  while D &lt;&gt; {} do
+    A := Atoms(C, D);
+    L := L, sort(A);
+    D := D minus op(A);
+  od;
+  networks[draw](Linear(L), G);
+end:
+\end{lstlisting}
+
+Ela produz imagens muito melhores, com o fluxo, da esquerda para a direita, seguindo aproximadamente os elementos crescentes do conjunto parcialmente ordenado.
+
+\begin{lstlisting}
+HasseDiagram(DivisorLattice(4));
+HasseDiagram(DivisorLattice(6));
+HasseDiagram(DivisorLattice(81));
+\end{lstlisting}
+
+Os dois seguintes são especialmente bonitos!
+
+\begin{lstlisting}
+HasseDiagram(DivisorLattice(2*3*5*7));
+HasseDiagram(DivisorLattice(2*3*5*2));
+\end{lstlisting}
+
+\section{Cálculos e explorações}
+Nesta seção, vamos explorar como o \textit{Maple} pode ser usado para resolver as questões 1, 4 e 5 da secção cálculos e explorações.
+
+\begin{enumerate}
+\item{Exibir todas as diferentes relações em um conjunto com 4 elementos.}
+
+	\textbf{Solução:}
+    
+    	Como de costume, Maple é demasiado poderoso para resolver somente uma única instância do problema geral sugerido por esta questão. Nós fornecemos aqui um procedimento muito simples que irá calcular todas as relações em qualquer conjunto finito.
+        
+\begin{lstlisting}
+AllRelations := proc(S::set)
+  local s, t, # indices into S
+  C; # Cartesian product SxS
+  C := {};
+  for s in S do
+    for t in S do
+      C := C union [s,t];
+    od;
+  od;
+  combinat[powerset](C);
+end:
+\end{lstlisting}
+
+		Nós agora testar o nosso procedimento em um conjunto menor, de modo a manter a saída de um comprimento razoável. O leitor é convidado para determinar o tempo de execução e o comprimento de saída para o processo, quando o conjunto de entrada tem cardinalidade 4 ou 5. Tenha em mente que existem $2^{n^{2}}$ relações em um conjunto com n membros.
+
+\begin{lstlisting}
+AllRelations(1,2);
+\end{lstlisting}
+
+\item{Determine quantas relações transitivo existem em um conjunto com \textit{n} elementos para todos os inteiros positivos \textit{n} com \textit{n} $\le$ 7.}
+
+	\textbf{Solução:}
+    
+    	Vamos construir cada possíveis n x n da matriz zero-um, usando um algoritmo semelhante ao de contagem binária. O pseudocódigo é:
+        
+        1- Para cada valor de 1 até $2^{(n ^{2})}$, criamos uma lista que é a representação de base 2 desse inteiro.
+        
+        2- Nós criamos uma matriz M com elementos sendo a lista de valores. Estes são todos os possíveis $n^{2}$ de matriz zero-um (o leitor pode provar esta afirmação).
+        
+        3- Avaliar o fechamento transitivo de cada uma das matrizes que criamos, e retornar o conjunto de fechos transitivos dessas matrizes.
+        
+        A implementação é como se segue:
+
+\begin{lstlisting}
+FindTransitive := proc(S::set)
+  local i, j, T, P;
+  P := {};
+  for i from 0 to 2^(nops(S)^2)-1 do
+    T := convert(i, base, 2);
+    while nops(T) &lt; nops(S)^2 do
+      T := [op(T), 0];
+    od;
+    P := P union matrix(nops(S), nops(S), T);
+  od;
+  P;
+end:
+\end{lstlisting}
+
+		Mais uma vez, utilizamos o nosso processo em valores relativamente pequenos (devido ao comprimento da saída), e deixamos a exploração adicional para o leitor.
+
+\begin{lstlisting}
+P := FindTransitive(1,2):
+Q := {}:
+for i from 1 to nops(P) do
+  Q := Q union Warshall(P[i]):
+od:
+Q;
+\end{lstlisting}
+
+\item{Encontre o fecho transitivo de uma relação em um conjunto com pelo menos 200 elementos.}
+
+	\textbf{Solução:}
+    
+    	Vamos gerar aleatoriamente uma matriz zero-um com dimensão 10x10, e em seguida, aplicar o algoritmo de \textbf{Warshall} para deduzir o fecho transitivo matriz.
+        
+        Para gerar uma matriz zero-um aleatória, usamos a função \textbf{randmatrix} do pacote \textbf{linalg}, e fornecer seu terceiro argumento, opcional com um procedimento que gera uma sequência aleatória 0's (zero) e 1's (un). Em seguida, aplicamos o algoritmo de \textbf{Warshall} a esta matriz aleatória, obtendo o resultado. Aqui, para economizar espaço, podemos aplicar este procedimento para uma matriz de 10x10 como um exemplo.
+
+\begin{lstlisting}
+Q := randmatrix(10, 10, entries=rand(2));
+Warshall(Q);
+\end{lstlisting}
+
+\end{enumerate}
+
+\section{Referências}
+\begin{itemize}
+\item \href{http://www.mhhe.com/math/advmath/rosen/r5/student/ch07/maple.html}{Maple: Chapter 7. Relations}
+\end{itemize}
+
+ 
+\end{document}
